@@ -4,7 +4,7 @@ import java.net.*;
 import java.io.*;
 import java.util.*;
 
-public class ClientHandlerT implements Runnable{
+public class ClientHandler implements Runnable{
 	Socket client;  // socket to the client passed by the main in ProxyServer.java
 	Socket server; // socket to the server
 	InputStream cIn; // input stream from the client
@@ -16,7 +16,7 @@ public class ClientHandlerT implements Runnable{
 	public static final int HTTP = 80; // default port at the server
     protected boolean debug = true;  // debug flag
     
-	public ClientHandlerT(Socket client) throws IOException{ // constructor allowing the main to pass the client
+	public ClientHandler(Socket client) throws IOException{ // constructor allowing the main to pass the client
 		this.client = client;
 		cIn = client.getInputStream();
 		cOut = client.getOutputStream();
