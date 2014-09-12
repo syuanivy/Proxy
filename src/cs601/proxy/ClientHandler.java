@@ -65,8 +65,8 @@ public class ClientHandler implements Runnable{
     
     //Send client's request to upstream server
 	private void send(String request, String headers, InputStream in, OutputStream out) throws IOException{
-		String message = request + headers;
-		//if (debug) System.out.println(message);
+		String message = request + headers+ "\r\n";
+		if (debug) System.out.println(message);
 		out.write(message.getBytes());
         if (in.available() != 0){
             int length = in.available();
@@ -84,14 +84,13 @@ public class ClientHandler implements Runnable{
     //Analyze the request, get the first line of request to send to the server
     String getRequest(String firstLine) throws IOException{
         Map<String, String> mRequest = new HashMap<String, String>(); // The table to save all information about the request 
-        //if (debug) System.out.println(firstLine);
-        String[] methodURLProtocol = firstLine.split("[ ]+"); // separate the three components in the first line 
-        mRequest.put("method", methodURLProtocol[0]);
-        mRequest.put("URL", methodURLProtocol[1]);
+        if (debug) System.out.println(firstLine);
+        String[] URLProtocol = firstLine.split("[ ]+"); // separate the three components in the first line 
+        mRequest.put("method", this.method);
+        mRequest.put("URL", URLProtocol[0]);
         mRequest.put("protocol", "HTTP/1.0");// Force it to version 1.0
-        this.method = mRequest.get("method");
         // Get the relative URL in the first line, path
-        String[] urlArray = methodURLProtocol[1].split("[/]");//split URL around "/"
+        String[] urlArray = URLProtocol[0].split("[/]");//split URL around "/"
         //if (debug) System.out.println(urlArray[2]);
         String path = "/";
         for(int i = 3; i < urlArray.length; i++){
@@ -100,7 +99,7 @@ public class ClientHandler implements Runnable{
         }
         mRequest.put("path", path);
    	    String request = mRequest.get("method") + " " + mRequest.get("path") + " " + mRequest.get("protocol")  + "\r\n";
-   	    //if (debug) System.out.println(request.toString());
+   	    if (debug) System.out.println(request.toString());
         return request;
     }
  
@@ -110,14 +109,14 @@ public class ClientHandler implements Runnable{
         //Get the header lines, header name as keys and the content as values
     	String header;
     	while((header = readLine(cIn)) != null){
+    		//System.out.println(header);
     		if(header != "\r\n"){
-    			String[] hArray =  header.split("[:]",2); // split around the first ":"           
+    			String[] hArray =  header.split("[:]",2); // split around the first ":"         
     			if(hArray.length < 2){
-    				mHeaders.put(hArray[0].toLowerCase().trim(), null);
+    				mHeaders.put(hArray[0].toLowerCase().trim(), null);  
     			}else{
-    				mHeaders.put(hArray[0].toLowerCase().trim(), hArray[1].trim());	
-    			}
-    			   
+    				mHeaders.put(hArray[0].toLowerCase().trim(), hArray[1].trim());  
+    			} 
     		}else break;
     	}
         this.host = mHeaders.get("host");
@@ -125,22 +124,27 @@ public class ClientHandler implements Runnable{
         Iterator it = mHeaders.entrySet().iterator(); // iterate through the headers Map 
         while (it.hasNext()) {
             Map.Entry pairs = (Map.Entry) it.next(); // get the header name and value pairs
-         // mask the user-agent and etc. header
-            if(!(((String) pairs.getKey()).contains("connection")) && ((((String) pairs.getValue()).contains("keep-alive"))) 
-            		&& !((String) pairs.getKey()).contains("user-agent") && !((String) pairs.getKey()).contains("proxy-connection") && !((String) pairs.getKey()).contains("referer")){ 
-                headers = headers + pairs.getKey() +  ": " + pairs.getValue() + "\r\n";
+            //mask
+            String headerName = (String) pairs.getKey();
+            String headerValue = (String) pairs.getValue();
+            if(headerName.contains("user-agent")|| headerName.contains("proxy-connection") || headerName.contains("referer")){
+                continue;
+            }
+            else{
+                if(headerName.contains("connection") && headerValue.contains("keep-alive")){
+                    continue;
+                }
+                else{
+                    headers = headers + headerName +  ": " + headerValue;
+                    System.out.println(headers);
+                }
             }
         }
-       
+       System.out.println(headers);
         //if (debug) System.out.println(headers.toString());
         return headers;
     }
     
-    //get data from the request
-    public String getData() { // maybe split after the second blank line??
-        String data = "";
-        return data;
-    }
     
     //read in one line as a String  each time
     private String readLine(InputStream cIn) throws IOException{
@@ -158,10 +162,10 @@ public class ClientHandler implements Runnable{
     
     //To see if it is a valid request
     private boolean valid() throws IOException{
-    	byte[] method = new byte[4];
-    	cIn.read(method);
-    	String sMethod = new String(method);
-    	if(sMethod.equals("GET ")||sMethod.equals("POST")) return true;
+    	byte[] bMethod = new byte[4];
+    	cIn.read(bMethod);
+    	this.method = new String(bMethod).trim();
+    	if(method.equals("GET")||method.equals("POST")) return true;
     	else return false;
     }   
 }
