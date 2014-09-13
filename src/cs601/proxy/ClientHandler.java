@@ -30,9 +30,10 @@ public class ClientHandler implements Runnable{
     			//send the request to server
     			cToS();
         		//send the response back to client
-        		sToC(server); //
+        		sToC(); //
     		}
     		if(client != null) client.close();
+    		System.out.println();
     		System.out.println("Client closed.");
     		if(server != null) server.close();
             System.out.println("server closed.");
@@ -45,16 +46,18 @@ public class ClientHandler implements Runnable{
     private void cToS() throws IOException{
     	//getRequest: method path protocol
     	String request = getRequest(readLine(cIn));
+    	//debug(request);
     	//getHeaders: name: value pairs, extract the host
     	String headers = getHeaders(cIn);
+    	//debug(headers);
     	//Create a server socket to connect to the requested host
         server= new Socket(host, HTTP);
         sOut = server.getOutputStream();
         //send the request to upstream server
-        send(request, headers, cIn, sOut);
+        send(request, headers,sIn, sOut);
     }
     //Server to Client, send the data back to the browser
-    void sToC(Socket server) throws IOException{
+    void sToC() throws IOException{
     	
     	sIn = server.getInputStream();
         String status = readLine(sIn); //connection status
@@ -63,17 +66,19 @@ public class ClientHandler implements Runnable{
     	
     }
     
-    //Send client's request to upstream server
+    //Send client's request, headers and data to upstream server, or send status, headers and data back to client
 	private void send(String request, String headers, InputStream in, OutputStream out) throws IOException{
-		String message = request + headers+ "\r\n";
-		if (debug) System.out.println(message);
-		out.write(message.getBytes());
-        if (in.available() != 0){
+		String message = request + headers+ "\r\n" + "\r\n"; // status + headers +data when sToC
+		debug(message);
+		out.write(message.getBytes()); // finish writing the headers, two blank lines
+        
+		if (in != null){ // there is data to send to the other side
             int length = in.available();
             byte[] bArray = new byte[4096];
             int count = 0;
             while(count < length){
                 int i = in.read(bArray);
+                System.out.print(new String(bArray));
                 out.write(bArray,0,i);
                 count += i;
             }
@@ -84,22 +89,25 @@ public class ClientHandler implements Runnable{
     //Analyze the request, get the first line of request to send to the server
     String getRequest(String firstLine) throws IOException{
         Map<String, String> mRequest = new HashMap<String, String>(); // The table to save all information about the request 
-        if (debug) System.out.println(firstLine);
+        //debug(firstLine);
         String[] URLProtocol = firstLine.split("[ ]+"); // separate the three components in the first line 
         mRequest.put("method", this.method);
         mRequest.put("URL", URLProtocol[0]);
         mRequest.put("protocol", "HTTP/1.0");// Force it to version 1.0
         // Get the relative URL in the first line, path
         String[] urlArray = URLProtocol[0].split("[/]");//split URL around "/"
-        //if (debug) System.out.println(urlArray[2]);
+        //debug(urlArray[0]); //http:
+        //debug(urlArray[1]); //""
+        //debug(urlArray[2]); //host
         String path = "/";
         for(int i = 3; i < urlArray.length; i++){
         	path ="";
         	path = path.concat("/").concat(urlArray[i]); // Need to test more complicated path
         }
         mRequest.put("path", path);
+        //debug(path);
    	    String request = mRequest.get("method") + " " + mRequest.get("path") + " " + mRequest.get("protocol")  + "\r\n";
-   	    if (debug) System.out.println(request.toString());
+   	    //debug(request);
         return request;
     }
  
@@ -109,9 +117,12 @@ public class ClientHandler implements Runnable{
         //Get the header lines, header name as keys and the content as values
     	String header;
     	while((header = readLine(cIn)) != null){
-    		//System.out.println(header);
-    		if(header != "\r\n"){
-    			String[] hArray =  header.split("[:]",2); // split around the first ":"         
+    		//debug(header);
+    		if(! header.equals("\r\n") ){
+    			String[] hArray =  header.split("[:]",2); // split around the first ":"
+    			//debug(hArray[0]);
+    			//debug(hArray[1]);
+    			
     			if(hArray.length < 2){
     				mHeaders.put(hArray[0].toLowerCase().trim(), null);  
     			}else{
@@ -119,7 +130,9 @@ public class ClientHandler implements Runnable{
     			} 
     		}else break;
     	}
-        this.host = mHeaders.get("host");
+    	host = mHeaders.get("host");
+    	//debug(mHeaders.toString());
+  
         String headers = ""; // to save the headers information
         Iterator it = mHeaders.entrySet().iterator(); // iterate through the headers Map 
         while (it.hasNext()) {
@@ -127,26 +140,22 @@ public class ClientHandler implements Runnable{
             //mask
             String headerName = (String) pairs.getKey();
             String headerValue = (String) pairs.getValue();
-            if(headerName.contains("user-agent")|| headerName.contains("proxy-connection") || headerName.contains("referer")){
+            //debug (headerName);
+            //debug(headerValue);
+            if(headerName.contains("user-agent")|| headerName.contains("proxy-connection") 
+            		|| headerName.contains("referer") || headerValue.contains("Keep-Alive")){
                 continue;
             }
             else{
-                if(headerName.contains("connection") && headerValue.contains("keep-alive")){
-                    continue;
-                }
-                else{
-                    headers = headers + headerName +  ": " + headerValue;
-                    System.out.println(headers);
+                headers = headers + "\r\n" + headerName +  ": " + headerValue; // one blank line before and after the content
+                //debug(headers);
                 }
             }
-        }
-       System.out.println(headers);
-        //if (debug) System.out.println(headers.toString());
         return headers;
     }
     
     
-    //read in one line as a String  each time
+    //read in one line as a String each time
     private String readLine(InputStream cIn) throws IOException{
     	String oneLine = "";
         int count;
@@ -168,5 +177,10 @@ public class ClientHandler implements Runnable{
     	if(method.equals("GET")||method.equals("POST")) return true;
     	else return false;
     }   
+    
+    //Debug
+    public void debug(Object returned){
+    	if (debug) System.out.println(returned);
+    }
 }
   
