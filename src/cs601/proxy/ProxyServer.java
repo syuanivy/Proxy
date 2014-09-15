@@ -4,7 +4,7 @@ import java.net.*;
 
 
 public class ProxyServer {
-	public static final int listeningPort= 8888;  // Port used to listen to requests
+	public static final int listeningPort= 8080;  // Port used to listen to requests
 	public static boolean openForService = true;
 	public static final boolean SingleThreaded = false;
 	

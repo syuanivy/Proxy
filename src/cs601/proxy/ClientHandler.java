@@ -60,15 +60,15 @@ public class ClientHandler implements Runnable{
     void sToC() throws IOException{
     	
     	sIn = server.getInputStream();
-        String status = readLine(sIn); //connection status
-        String headers = getHeaders(sIn);
-        send(status, headers, sIn, cOut);
+        String status = readLine(sIn); //connection status, ends with \n
+        String headers = getHeaders(sIn);//headers starts with "\r\n"
+        send(status.substring(0,status.length()-2), headers, sIn, cOut);//no blank line in between status and headers
     	
     }
     
     //Send client's request, headers and data to upstream server, or send status, headers and data back to client
 	private void send(String request, String headers, InputStream in, OutputStream out) throws IOException{
-		String message = request + headers+ "\r\n" + "\r\n"; // status + headers +data when sToC
+		String message = request + headers+ "\r\n" + "\r\n"; // status + headers + blank line +data when sToC
 		debug(message);
 		out.write(message.getBytes()); // finish writing the headers, two blank lines
         
@@ -94,19 +94,22 @@ public class ClientHandler implements Runnable{
         mRequest.put("method", this.method);
         mRequest.put("URL", URLProtocol[0]);
         mRequest.put("protocol", "HTTP/1.0");// Force it to version 1.0
+        //debug(URLProtocol[0]);
         // Get the relative URL in the first line, path
         String[] urlArray = URLProtocol[0].split("[/]");//split URL around "/"
         //debug(urlArray[0]); //http:
         //debug(urlArray[1]); //""
-        //debug(urlArray[2]); //host
+        //debug(urlArray[2]); //website, www.cs.usfca.edu/_/xyzabc/123..
+        
         String path = "/";
         for(int i = 3; i < urlArray.length; i++){
-        	path ="";
-        	path = path.concat("/").concat(urlArray[i]); // Need to test more complicated path
+        	//System.out.println(path);
+        	path = path.concat(urlArray[i]).concat("/"); // Need to test more complicated path
         }
+        if (path.length()>1) path = path.substring(0,path.length()-1); // get rid of "/" at the end
         mRequest.put("path", path);
         //debug(path);
-   	    String request = mRequest.get("method") + " " + mRequest.get("path") + " " + mRequest.get("protocol")  + "\r\n";
+   	    String request = mRequest.get("method") + " " + mRequest.get("path") + " " + mRequest.get("protocol");
    	    //debug(request);
         return request;
     }
@@ -143,12 +146,13 @@ public class ClientHandler implements Runnable{
             //debug (headerName);
             //debug(headerValue);
             if(headerName.contains("user-agent")|| headerName.contains("proxy-connection") 
-            		|| headerName.contains("referer") || headerValue.contains("Keep-Alive")){
+            		|| headerName.contains("referer") || headerValue.contains("keep-alive") 
+            		|| headerValue.contains("Keep-Alive")){
                 continue;
             }
             else{
                 headers = headers + "\r\n" + headerName +  ": " + headerValue; // one blank line before and after the content
-                //debug(headers);
+                //debug(headers); // my headers starts with "\r\n" so that it can be concatenated directly to request
                 }
             }
         return headers;
