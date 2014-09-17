@@ -62,7 +62,8 @@ public class ClientHandler implements Runnable{
     	sIn = server.getInputStream();
         String status = readLine(sIn); //connection status, ends with \n
         String headers = getHeaders(sIn);//headers starts with "\r\n"
-        send(status.substring(0,status.length()-2), headers, sIn, cOut);//no blank line in between status and headers
+        String status1 = status.substring(0,status.length()-2);
+        send(status1, headers, sIn, cOut);//no blank line in between status and headers
     	
     }
     
