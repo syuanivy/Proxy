@@ -22,26 +22,26 @@ public class ClientHandler implements Runnable{
 		cOut = client.getOutputStream();
 	}
 	
-    @Override
-    public void run(){
-    	try {
-    		//if request valid
-    		if (valid()){
-    			//send the request to server
-    			cToS();
-        		//send the response back to client
-        		sToC(); //
-    		}
-    		if(client != null) client.close();
-    		System.out.println();
-    		System.out.println("Client closed.");
-    		if(server != null) server.close();
-            System.out.println("server closed.");
-           } catch (IOException ioe) {
-        	   ioe.printStackTrace();
-           } 
-    }
-    
+	@Override
+	public void run(){
+		try {
+			//if request valid
+			if (valid()){
+				//send the request to server
+				cToS();
+				//send the response back to client
+				sToC(); //
+			}
+			if(client != null) client.close();
+			System.out.println();
+			System.out.println("Client closed.");
+			if(server != null) server.close();
+			System.out.println("server closed.");
+		} catch (IOException ioe) {
+			ioe.printStackTrace();
+		} 
+	}
+
     //Client to Server, send the request out
     private void cToS() throws IOException{
     	//getRequest: method path protocol
@@ -49,12 +49,13 @@ public class ClientHandler implements Runnable{
     	//debug(request);
     	//getHeaders: name: value pairs, extract the host
     	String headers = getHeaders(cIn);
+    	
     	//debug(headers);
     	//Create a server socket to connect to the requested host
         server= new Socket(host, HTTP);
         sOut = server.getOutputStream();
         //send the request to upstream server
-        send(request, headers,sIn, sOut);
+        send(request, headers,cIn, sOut);
     }
     //Server to Client, send the data back to the browser
     void sToC() throws IOException{
@@ -67,24 +68,24 @@ public class ClientHandler implements Runnable{
     	
     }
     
-    //Send client's request, headers and data to upstream server, or send status, headers and data back to client
+    //Send information both ways: request/status+headers+data
 	private void send(String request, String headers, InputStream in, OutputStream out) throws IOException{
 		String message = request + headers+ "\r\n" + "\r\n"; // status + headers + blank line +data when sToC
 		debug(message);
-		out.write(message.getBytes()); // finish writing the headers, two blank lines
-        
+		out.write(message.getBytes()); // finish writing the headers, blank line
+		
 		if (in != null){ // there is data to send to the other side
             int length = in.available();
             byte[] bArray = new byte[4096];
             int count = 0;
             while(count < length){
                 int i = in.read(bArray);
-                System.out.print(new String(bArray));
+                //System.out.print(new String(bArray));
                 out.write(bArray,0,i);
                 count += i;
             }
-        }
-        out.flush();
+		}
+         out.flush();
 	}
     
     //Analyze the request, get the first line of request to send to the server
@@ -97,19 +98,24 @@ public class ClientHandler implements Runnable{
         mRequest.put("protocol", "HTTP/1.0");// Force it to version 1.0
         //debug(URLProtocol[0]);
         // Get the relative URL in the first line, path
-        String[] urlArray = URLProtocol[0].split("[/]");//split URL around "/"
+        String[] urlArray = URLProtocol[0].split("//",2);//split URL around "//"
+        String[] pathArray = urlArray[1].split("[/]",2);
+        String path = pathArray[1];
+        path = ("/").concat(path);
         //debug(urlArray[0]); //http:
         //debug(urlArray[1]); //""
         //debug(urlArray[2]); //website, www.cs.usfca.edu/_/xyzabc/123..
-        
+/*        
         String path = "/";
-        for(int i = 3; i < urlArray.length; i++){
+        for(int i = 3; i < urlArray.length-1; i++){
         	//System.out.println(path);
         	path = path.concat(urlArray[i]).concat("/"); // Need to test more complicated path
         }
-        if (path.length()>1) path = path.substring(0,path.length()-1); // get rid of "/" at the end
+       // path = path.concat(urlArray[i])
+        //if (path.length()>1) path = path.substring(0,path.length()-1); // get rid of "/" at the end
+         * */
         mRequest.put("path", path);
-        //debug(path);
+        debug(path);
    	    String request = mRequest.get("method") + " " + mRequest.get("path") + " " + mRequest.get("protocol");
    	    //debug(request);
         return request;
@@ -135,7 +141,7 @@ public class ClientHandler implements Runnable{
     		}else break;
     	}
     	host = mHeaders.get("host");
-    	//debug(mHeaders.toString());
+        debug(mHeaders.toString());
   
         String headers = ""; // to save the headers information
         Iterator it = mHeaders.entrySet().iterator(); // iterate through the headers Map 
