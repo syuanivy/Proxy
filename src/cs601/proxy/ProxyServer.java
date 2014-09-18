@@ -11,6 +11,7 @@ public class ProxyServer {
 	public static void main(String[] args) throws Exception {   
 
 		ServerSocket sSocket = new ServerSocket(listeningPort); //Open a server socket
+		
 		while (openForService) {
             try { 
                 Socket client = sSocket.accept(); //Wait for a socket connection
@@ -18,7 +19,7 @@ public class ProxyServer {
                 	new ClientHandler(client).run(); // pass the client to ClientHandler and run
                 }
                 else{
-                   new Thread(new ClientHandler(client)).start();
+                   new Thread(new ClientHandler(client)).start();// launch a new thread for each client
                 }
             }catch (IOException ioe) { 
     			System.err.println("Can't complete the service!");

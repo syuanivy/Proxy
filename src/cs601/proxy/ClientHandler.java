@@ -11,8 +11,8 @@ public class ClientHandler implements Runnable{
 	OutputStream cOut; //output stream to the client
 	InputStream sIn;  //input stream from the server
 	OutputStream sOut;  //output stream to the server 
-	String method;  // the request method
-	String host;  // the quested host
+	String method;  // the request method, GET or POST, extract from the request line
+	String host;  // the quested host, extract from the headers
 	public static final int HTTP = 80; // default port at the server
     protected boolean debug = true;  // debug flag
     
@@ -25,54 +25,45 @@ public class ClientHandler implements Runnable{
 	@Override
 	public void run(){
 		try {
-			//if request valid
-			if (valid()){
-				//send the request to server
-				cToS();
-				//send the response back to client
-				sToC(); //
+			if (valid()){   // if GET or POST
+				clientToServer();
+				serverToClient();
 			}
 			if(client != null) client.close();
-			System.out.println();
-			System.out.println("Client closed.");
 			if(server != null) server.close();
-			System.out.println("server closed.");
-		} catch (IOException ioe) {
+		}catch (IOException ioe) {
 			ioe.printStackTrace();
 		} 
 	}
 
-    //Client to Server, send the request out
-    private void cToS() throws IOException{
-    	//getRequest: method path protocol
-    	String request = getRequest(readLine(cIn));
+    //Client to Server, send the request out to the server
+    private void clientToServer() throws IOException{
+    	String request = getRequest(readLine(cIn));//getRequest: method path protocol
     	//debug(request);
-    	//getHeaders: name: value pairs, extract the host
-    	String headers = getHeaders(cIn);
     	
+    	String headers = getHeaders(cIn);//getHeaders: \r\nName: value\r\nName: value...\r\n\r\n
     	//debug(headers);
-    	//Create a server socket to connect to the requested host
-        server= new Socket(host, HTTP);
+
+    	server= new Socket(host, HTTP);
         sOut = server.getOutputStream();
-        //send the request to upstream server
-        send(request, headers,cIn, sOut);
+        send(request, headers,cIn, sOut);// send to sever: request+\r\n+headers+\r\n\r\n+data if any
     }
-    //Server to Client, send the data back to the browser
-    void sToC() throws IOException{
-    	
+    
+    //Server to Client, send the response back to the browser
+    void serverToClient() throws IOException{	
     	sIn = server.getInputStream();
+    	
         String status = readLine(sIn); //connection status, ends with \n
         String headers = getHeaders(sIn);//headers starts with "\r\n"
-        String status1 = status.substring(0,status.length()-2);
-        send(status1, headers, sIn, cOut);//no blank line in between status and headers
-    	
+        String status1 = status.substring(0,status.length()-2);// get rid of the "\n" at the end
+        send(status1, headers, sIn, cOut);//send to browser: status+\r\n+headers+\r\n\r\n+data if any    	
     }
     
     //Send information both ways: request/status+headers+data
 	private void send(String request, String headers, InputStream in, OutputStream out) throws IOException{
 		String message = request + headers+ "\r\n" + "\r\n"; // status + headers + blank line +data when sToC
-		debug(message);
-		out.write(message.getBytes()); // finish writing the headers, blank line
+		//debug(message);
+		out.write(message.getBytes()); // write out everything before data
 		
 		if (in != null){ // there is data to send to the other side
             int length = in.available();
@@ -80,8 +71,7 @@ public class ClientHandler implements Runnable{
             int count = 0;
             while(count < length){
                 int i = in.read(bArray);
-                //System.out.print(new String(bArray));
-                out.write(bArray,0,i);
+                out.write(bArray,0,i);  // read into byte[] and write out the data left in the inputStream
                 count += i;
             }
 		}
@@ -91,32 +81,22 @@ public class ClientHandler implements Runnable{
     //Analyze the request, get the first line of request to send to the server
     String getRequest(String firstLine) throws IOException{
         Map<String, String> mRequest = new HashMap<String, String>(); // The table to save all information about the request 
-        //debug(firstLine);
+
         String[] URLProtocol = firstLine.split("[ ]+"); // separate the three components in the first line 
-        mRequest.put("method", this.method);
-        mRequest.put("URL", URLProtocol[0]);
+        mRequest.put("method", this.method); //GET or POST
+        mRequest.put("URL", URLProtocol[0]); // the whole URL
         mRequest.put("protocol", "HTTP/1.0");// Force it to version 1.0
         //debug(URLProtocol[0]);
-        // Get the relative URL in the first line, path
-        String[] urlArray = URLProtocol[0].split("//",2);//split URL around "//"
-        String[] pathArray = urlArray[1].split("[/]",2);
+        
+        // Get the relative URL in the first line or path
+        String[] urlArray = URLProtocol[0].split("//",2);//split URL around the first "//"
+        String[] pathArray = urlArray[1].split("[/]",2); //split around the first "/" after host
         String path = pathArray[1];
         path = ("/").concat(path);
-        //debug(urlArray[0]); //http:
-        //debug(urlArray[1]); //""
-        //debug(urlArray[2]); //website, www.cs.usfca.edu/_/xyzabc/123..
-/*        
-        String path = "/";
-        for(int i = 3; i < urlArray.length-1; i++){
-        	//System.out.println(path);
-        	path = path.concat(urlArray[i]).concat("/"); // Need to test more complicated path
-        }
-       // path = path.concat(urlArray[i])
-        //if (path.length()>1) path = path.substring(0,path.length()-1); // get rid of "/" at the end
-         * */
         mRequest.put("path", path);
-        debug(path);
-   	    String request = mRequest.get("method") + " " + mRequest.get("path") + " " + mRequest.get("protocol");
+        //debug(path);
+   	    
+        String request = mRequest.get("method") + " " + mRequest.get("path") + " " + mRequest.get("protocol");
    	    //debug(request);
         return request;
     }
@@ -124,41 +104,39 @@ public class ClientHandler implements Runnable{
     //Analyze the headers , extract the host
     private String getHeaders(InputStream cIn) throws IOException{
     	Map<String, String> mHeaders = new HashMap<String, String>();
-        //Get the header lines, header name as keys and the content as values
+ 
     	String header;
     	while((header = readLine(cIn)) != null){
-    		//debug(header);
-    		if(! header.equals("\r\n") ){
+    		if(! header.equals("\r\n") ){  // not empty
     			String[] hArray =  header.split("[:]",2); // split around the first ":"
     			//debug(hArray[0]);
     			//debug(hArray[1]);
     			
-    			if(hArray.length < 2){
+    			if(hArray.length < 2){  // no value for the header name
     				mHeaders.put(hArray[0].toLowerCase().trim(), null);  
     			}else{
     				mHeaders.put(hArray[0].toLowerCase().trim(), hArray[1].trim());  
     			} 
     		}else break;
     	}
-    	host = mHeaders.get("host");
-        debug(mHeaders.toString());
+    	host = mHeaders.get("host");  //extract host from the headers
+        //debug(mHeaders.toString());
   
         String headers = ""; // to save the headers information
         Iterator it = mHeaders.entrySet().iterator(); // iterate through the headers Map 
         while (it.hasNext()) {
             Map.Entry pairs = (Map.Entry) it.next(); // get the header name and value pairs
-            //mask
             String headerName = (String) pairs.getKey();
             String headerValue = (String) pairs.getValue();
             //debug (headerName);
             //debug(headerValue);
             if(headerName.contains("user-agent")|| headerName.contains("proxy-connection") 
             		|| headerName.contains("referer") || headerValue.contains("keep-alive") 
-            		|| headerValue.contains("Keep-Alive")){
+            		|| headerValue.contains("Keep-Alive")){  // mask the undesired ones
                 continue;
             }
             else{
-                headers = headers + "\r\n" + headerName +  ": " + headerValue; // one blank line before and after the content
+                headers = headers + "\r\n" + headerName +  ": " + headerValue; // 
                 //debug(headers); // my headers starts with "\r\n" so that it can be concatenated directly to request
                 }
             }
@@ -183,8 +161,8 @@ public class ClientHandler implements Runnable{
     //To see if it is a valid request
     private boolean valid() throws IOException{
     	byte[] bMethod = new byte[4];
-    	cIn.read(bMethod);
-    	this.method = new String(bMethod).trim();
+    	cIn.read(bMethod);   //read in the first 4 bytes of the input stream
+    	this.method = new String(bMethod).trim(); //trim off any spaces around it
     	if(method.equals("GET")||method.equals("POST")) return true;
     	else return false;
     }   
